@@ -1,0 +1,1878 @@
+import React from "react";
+import config from "../config";
+import { connect } from "react-redux";
+import { floorList, imgDetails, getAllElements } from "../store/actions/index";
+import { css } from "emotion";
+import Drawer from "react-drag-drawer";
+import { Typeahead } from "react-bootstrap-typeahead";
+import "react-bootstrap-typeahead/css/Typeahead.css";
+import { Link } from "react-router-dom";
+import LayerModal from './LayerModal';
+
+const Card = css`
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  margin: 40px auto;
+
+  @media (min-width: 768px) {
+    border-radius: 0;
+  }
+
+  button {
+    margin-top: 50px;
+  }
+`;
+
+
+
+const modal = css`
+  position: absolute;
+  top: 30px;
+  background-color: white;
+  width: 100%;
+  max-width: 700px;
+  min-height: 100%;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+`;
+
+const Sidebar = css`
+  ${modal} top: 0;
+  max-width: 300px;
+  border-radius: 0;
+  left: 0;
+  background: linear-gradient(to bottom, #09203f, #1d4a6d);
+`;
+
+
+class Graph {
+    constructor(noOfVertices) {
+      this.noOfVertices = noOfVertices;
+      this.AdjList = new Map();
+      this.Adjweights = new Map();
+    }
+    addVertex(v) {
+      this.AdjList.set(v, []);
+      this.Adjweights.set(v, []);
+    }
+    hasvertex(v) {
+      return this.AdjList.has(v);
+    }
+    edges(v) {
+      return this.AdjList.get(v);
+    }
+    addEdge(v, w, wt, undir) {
+      if (undir) {
+        this.AdjList.get(v).push(w);
+        this.Adjweights.get(v).push(wt);
+        this.AdjList.get(w).push(v);
+        this.Adjweights.get(w).push(wt);
+      } else {
+        this.AdjList.get(v).push(w);
+        this.Adjweights.get(v).push(wt);
+      }
+    }
+  
+    printGraph() {
+      var get_keys = this.AdjList.keys();
+      for (var i of get_keys) {
+        var get_values = this.AdjList.get(i);
+        var val = this.Adjweights.get(i);
+        var conc = "";
+        var conc2 = "";
+        for (var j of get_values) conc += j + " ";
+        for (var j of val) conc2 += j + " ";
+      }
+    }
+  }
+
+class ZoomTest extends React.Component{
+    constructor(props){
+        super(props);
+        this.state = {
+            isLoading:false,
+            allNodes:[],
+            list:[],
+            flrList:[],
+            buildingName:"",
+            imgList:null,
+            srcName:'none',
+            srcFloor:'none',
+            srcVal:null,
+            dstVal:null,
+            srcFloorL:null,
+            srcFloorB:null,
+            dstName:'none',
+            dstFloor:"none",
+            dstFloorL:null,
+            dstFloorB:null,
+            samefloor:true,
+            scale: 2.6,
+            lastX:0,
+            lastY:0,
+            scaleFactor:0,
+            canvas:null,
+            img1:null,
+            ctx:null,
+            x:0,
+            y:0,
+            sidebarLeft: false,
+            slide: false,
+            showLayer:false,
+            showContent:false,
+        }
+        
+        this.num_floors = 0;
+        this.allGrids = [];
+        this.graph = null;
+        this.flrLists = [];
+        this.fileList = [];
+        this.lastX = 0;
+        this.lastY = 0;
+        this.dragStart = 0;
+        this.dragged = false;
+        this.ctx = null;
+        this.canvas = null;
+        this.img1 = null;
+        this.shortestPath = [];
+        this.grids = [];
+        this.visited = [];
+        this.minimumCost = [];
+        this.leaves = [];
+        this.flrConn = [];
+        this.evCache = [];
+        //Zoom
+        this.canvas = null;
+        this.context = null;
+        this.position = {
+            x:0,
+            y:0
+        }
+        this.scale= {
+            x:0.5,
+            y:0.5
+        }
+        this.img = null;
+        this.lastZoomScale = null;
+        this.lastX = null;
+        this.mdown = false;
+        this.init = false;
+        this.imgDiv = null;
+        this.xCoord = [];
+        this.yCoord = [];
+        this.xMinPair = null;
+        this.yMinPair = null;
+        this.xMaxPair = null;
+        this.yMaxPair = null;
+        requestAnimationFrame(this.animate.bind(this));
+    }
+
+    componentDidMount(){
+        let name = window.location.href.split("=")[1];
+        this.buildingName = name.split("&&")[0];
+        localStorage.clear();
+        localStorage.setItem("buildingName", this.buildingName);
+        this.props.floorList(this.buildingName, () => {
+          this.num_floors = this.props.fList[0].num_floors;
+          for (let i = 0; i < this.props.fList.length; i++) {
+            this.flrLists.push(this.props.fList[i].floor);
+            this.fileList.push(this.props.fList[i].fileName)
+          }
+        });
+
+        this.props.getAllElements(()=>{
+            let nodes = this.props.allNodes[0].nodes;
+            this.setState({
+                allNodes:nodes
+            })
+            let lists = [];
+            let numVert = 0;
+            let fc = new Map();
+            for(let i=0;i<nodes.length;i++){
+                if(nodes[i].floorElement === 'FloorConnection'){
+                    numVert++;
+                    let v = nodes[i].type + ","+nodes[i].name;
+                    let val = nodes[i].floor + ","+nodes[i].node;
+                    if(fc.has(v)===false){
+                        fc.set(v,[val]);
+                    }else{
+                        fc.get(v).push(val);
+                    }
+                }
+            }
+            this.graph = new Graph(numVert + 2);
+            for(let i=0;i<nodes.length;i++){
+                if(nodes[i].name){
+                    let sel = nodes[i];
+                    lists.push(sel);
+                }
+                if(nodes[i].floorElement === 'FloorConnection'){
+                    let val = nodes[i].floor+","+nodes[i].node;
+                    this.graph.addVertex(val);
+                }
+                if(nodes[i].floorElement === 'Floor'){
+                    if(nodes[i].length === 8 ){
+                        let v = nodes[i].frConn[0].split(",");
+                        let flrMatrix = nodes[i].flr_dist_matrix[0].split(',');
+                        let len = v.length / 2;
+                        if(v.length % 2 === 0 ){
+                            for(let j=0;j<v.length;j=j+2){
+                                let val = parseInt(nodes[i].length)* parseInt(v[j+1]) + parseInt(v[j]);
+                                let vert1 = nodes[i].floor+","+val;
+                                for(let k = j+2;k<v.length;k=k+2){
+                                    val = parseInt(nodes[i].length)*parseInt(v[k+1])+parseInt(v[k]);
+                                    let vert2 = nodes[i].floor + ","  +val;
+                                    this.graph.addEdge(
+                                        vert1,
+                                        vert2,
+                                        flrMatrix[len*(j/2)+k/2],
+                                        true
+                                    )
+                                }
+                            }
+                        }else{
+
+                        }
+                    }
+                    this.allGrids.push(nodes[i])
+                }
+            }
+
+            let getKeys = fc.keys();
+            for(let i of getKeys){
+                let getValues = fc.get(i);
+                let cnt = 0;
+                let prev = null;
+                for(let j of getValues){
+                    if(cnt>0){
+                        this.graph.addEdge(prev,j,0,true);
+                        prev = j;
+                    }
+                    if(cnt===0){
+                        prev = j;
+                    }
+                    cnt++
+                }
+            }
+            this.setState({
+                list:lists,
+                flrList:this.flrLists,
+                buildingName:this.buildingName,
+                imgList: this.fileList
+            })
+        })
+    }
+
+    srcChange = (e) =>{
+            let name = null;
+            let val = null;
+            let floor = null;
+            let nodes = this.props.allNodes[0];
+            if(e.length > 0){
+                for(let i=0;i<nodes.nodes.length;i++){
+                    if(e[0].name === nodes.nodes[i].name){
+                        name = nodes.nodes[i].name;
+                        floor = nodes.nodes[i].floor;
+                        val = nodes.nodes[i].node;
+                    }
+                }
+            }
+
+            let ind = this.findFloor(floor,this.props.fList);
+            console.log("flistss",ind)
+
+            this.setState({
+                srcName:name,
+                srcFloor: floor,
+                srcVal: parseInt(val),
+                srcFloorL:this.props.fList[ind].floorL,
+                srcFloorB:this.props.fList[ind].floorB
+            },()=>{
+                this.handleSubmit()
+            })
+    }
+
+    dstChange = (e)=>{
+        let name = null;
+        let val = null;
+        let floor = null;
+        let nodes = this.props.allNodes[0];
+        if(e.length > 0){
+            for(let i=0;i<nodes.nodes.length;i++){
+                if(e[0].name === nodes.nodes[i].name){
+                    name = nodes.nodes[i].name;
+                    floor = nodes.nodes[i].floor;
+                    val = nodes.nodes[i].node;
+                }
+            }
+            let ind = this.findFloor(floor,this.props.fList);
+            this.setState({
+                dstName:name,
+                dstFloor: floor,
+                dstVal: parseInt(val),
+                dstFloorL: this.props.fList[ind].floorL,
+                dstFloorB: this.props.fList[ind].floorB,
+                slide:true,
+                showContent:true,
+                scale:3.6
+
+            },()=>{
+                this.handleSubmit();
+            })
+        }
+    }
+
+    findFloor = (key,array)=>{
+        if(array !== undefined){
+          console.log("array",key,array)
+            for(let i=0;i<array.length;i++){
+                if(array[i].floor === key){
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    handleSubmit = ()=>{
+            let { srcVal,srcFloor,dstFloor,dstVal,srcFloorL,srcFloorB} = this.state;
+            if(srcVal !== null && dstVal !==null){
+                let divImg = this.refs.mydiv1;
+                let divCan = this.refs.mydiv;
+                let len = divImg.childNodes.length;
+                for(let i=0;i<len;i++){
+                    divImg.childNodes[0].remove()
+                }
+            len = divCan.childNodes.length;
+            for(let i=0;i<len;i++){
+                divCan.childNodes[0].remove();   
+            }
+            if(srcFloor === dstFloor){
+                this.setState({
+                    sameFloor:true
+                })
+                let ind = this.findFloor(srcFloor,this.props.fList);
+                this.props.getImage[1] = "";
+                let img1 = new Image();
+                this.props.imgDetails(
+                    this.state.buildingName,
+                    srcFloor,
+                    this.props.fList[ind].fileName,
+                    () => {
+                        img1.src = `${config.imgUrl}${this.props.getImage[1]}`;
+                      }
+                    )
+                img1.hidden = true;
+                this.img1 = img1;
+                this.img = img1;
+                divImg.appendChild(img1);
+                var ctx = document.getElementById("myCanvassrc");
+                if (ctx.getContext) {
+                      ctx = ctx.getContext("2d");
+                var canvas = ctx.canvas;
+                this.canvas = canvas
+                this.ctx = ctx;
+                this.context = ctx;
+ 
+                let colorCanvas  = this.colorCanvas;
+                let me = this;
+                let destX  = this.state.dstVal % this.state.dstFloorL;
+                let destY = parseInt(this.state.dstVal / this.state.dstFloorL);
+                let imgDiv = document.getElementById("myImage");
+                this.imgDiv = imgDiv;
+                img1.onload = ()=>{
+                    ctx.drawImage(imgDiv,0,0,imgDiv.width,imgDiv.height,0,0,canvas.width,canvas.height)
+                this.trackTransforms(ctx);
+                // this.redraw(img1,canvas,ctx);
+                // this.lastX  = canvas.width/2;
+                // this.lastY  = canvas.height/2;
+                this.lastX = destX;
+                this.lastY = destY;
+                // this.callWhile(srcFloor,srcVal,srcFloorL,srcFloorB,destX,destY,true,"myCanvassrc");
+                // this.colorCanvas(srcVal,"srcmap","red");
+                // this.colorCanvas(dstVal,"srcmap","green");
+                this.setState({
+                    scaleFactor:1.1,
+                    canvas: canvas,
+                    img1:img1,
+                    ctx:ctx,
+                })
+                this.zoom(1);
+               }
+               if(!this.init) {
+                if(this.imgDiv.width) {
+                    var scaleRatio = null;
+                    if(this.canvas.clientWidth > this.canvas.clientHeight) {
+                        scaleRatio = this.canvas.clientWidth / this.imgDiv.width;
+                    }
+                    else {
+                        scaleRatio = this.canvas.clientHeight / this.imgDiv.height;
+                    }
+                    this.scale.x = scaleRatio;
+                    this.scale.y = scaleRatio;
+                    this.init = true;
+                }
+            }
+                } 
+            }else{
+                this.setState({
+                    sameFloor:false
+                })
+                this.findPath();
+            }
+        }
+    }
+
+    colorCanvas=(i,place,color)=>{
+      if(place==='srcmap'){
+        let {srcFloorL,scale} = this.state;
+        var canvas = document.getElementById("myCanvassrc");
+        var context = canvas.getContext("2d");
+        var posX = scale*(i%srcFloorL);
+        var posY = scale*parseInt(i/(srcFloorL));
+        // context.fillStyle = color;
+  
+        context.beginPath();
+        var halfScale = (scale/2);
+        posX=(posX+halfScale);
+        posY=(posY+halfScale);
+        // alert((pos_x-left_padding)+" x"+pos_x+" y"+ pos_y)
+        context.arc(posX,posY, scale, 0, 2 * Math.PI);
+        context.fillStyle = color;
+        context.fill();
+        // context.lineWidth = 5;
+        // context.strokeStyle = '#003300';
+        // context.stroke();
+        // context.fillRect (pos_x, pos_y, scale, scale);
+      }
+      else{
+        let {dstFloorL,scale} = this.state;
+        let canvas = document.getElementById("myCanvasdst");
+        let context = canvas.getContext("2d");
+        let posX = scale*(i%dstFloorL);
+        let posY = scale*parseInt(i/(dstFloorL));
+        context.fillStyle = color;
+        context.fillRect (posX, posY, scale, scale);
+      }
+    }
+
+    // colorCanvas = (i, place, color) => {
+    //     if (place === "srcmap") {
+    //       let { srcFloorL, scale } = this.state;
+    //       var canvas = document.getElementById("myCanvassrc");
+    //       var context = canvas.getContext("2d");
+
+    //       var animate = document.getElementById("animate");
+    //       var ctx = animate.getContext("2d");
+
+    //       var posX = scale * (i % srcFloorL);
+    //       var posY = scale * parseInt(i / srcFloorL);
+    
+    //       var half_scale = scale / 2;
+    //       posX = posX + half_scale;
+    //       posY = posY + half_scale;
+    //       var x = scale,
+    //         y = 0,
+    //         value = 2;
+    
+    //       if (i === this.state.srcVal) {
+    //         context.shadowBlur = 10;
+    //         context.beginPath();
+    //         context.shadowColor = "green";
+    //         context.arc(posX, posY, scale, 0, 2 * Math.PI);
+    //         context.fillStyle = "green";
+    //         context.fill();
+    //       } else {
+    //         requestAnimationFrame(animateFunction);
+    //         function animateFunction() {
+    //           ctx.clearRect(0, 0, animate.width, animate.height);
+    //           ctx.beginPath();
+    //           ctx.shadowBlur = 10;
+    //           ctx.shadowColor = "black";
+    //           ctx.beginPath();
+    //           ctx.shadowColor = "#8b1200";
+    //           ctx.arc(posX, posY, x / 3, 0, 2 * Math.PI);
+    //           ctx.fillStyle = "#8b1200";
+    //           ctx.fill();
+    //           if (x >= 0) {
+    //             x += value;
+    //             if (x > 15) {
+    //               y += value;
+    //               x -= value;
+    //             }
+    //           }
+    //           if (y > 175) {
+    //             x = scale;
+    //             y = 0;
+    //           }
+    //           requestAnimationFrame(animateFunction);
+    //         }
+    //       }
+    //     } else {
+    //       let { dstfloorL, scale } = this.state;
+    //       var canvas = document.getElementById("myCanvasdst");
+    //       var context = canvas.getContext("2d");
+    //       var posX = scale * (i % dstfloorL);
+    //       var posY = scale * parseInt(i / dstfloorL);
+    //       context.fillStyle = color;
+    //       context.fillRect(posX, posY, scale, scale);
+    //     }
+    //   };
+
+    // callWhile = (srcFloor,srcVal,m,n,destX,destY,single,canvasId)=>{
+    //     let min = Number.MAX_VALUE;
+    //     let minLeave = [];
+    //     let varI;
+    //     let notThere;
+    //     for(let i=0;i<m;i++){
+    //         let row = [],row1 = [],row3 = [],row4 = [];
+    //         for(let j=0;j<n;j++){
+    //             row.push(1);
+    //             row1.push(-1);
+    //             row3.push(Number.MAX_VALUE);
+    //             let row5 = [];
+    //             row4.push(row5)
+    //         }       
+    //         this.shortestPath.push(row4);
+    //         this.grids.push(row);
+    //         this.visited.push(row1);
+    //         this.minimumCost.push(row3);
+    //     }
+    //     let ind1 = this.findFloor(srcFloor,this.allGrids);
+    //     if(this.allGrids[ind1].grid_1 !== null){
+    //             for(let i=0;i<this.allGrids[ind1].grid_1[i].length;i++){
+    //                     let nodes = this.allGrids[ind1].grid_1[i].split(",");
+    //                     for(let j=0;j<nodes.length;j++){
+    //                         let val = nodes[j];
+    //                         let x = val%m;
+    //                         let y = parseInt(val/m);
+    //                         this.grids[x][y] = 0;
+    //                     }
+    //             }
+    //     }
+    //     let srcX = srcVal % m;
+    //     let srcY = parseInt(srcVal/m);
+    //     let checkLeaves = new Map();
+    //     this.leaves.push([srcX,srcY]);
+    //     checkLeaves.set([srcX,srcY],1);
+    //     this.shortestPath[srcX][srcY].push([srcX,srcY]);
+    //     this.minimumCost[srcX][srcY] = 0;
+    //     while(this.leaves.length>0){
+    //         min = Number.MAX_VALUE;
+    //         minLeave = this.leaves[0];
+    //         min = this.minimumCost[minLeave[0]][minLeave[1]];
+    //         this.minimumCost[srcX][srcY] = 0;
+    //         varI = 0;
+    //         if(single === true){
+    //             if (minLeave[0] === destX && minLeave[1] === destY) {
+    //                 break;
+    //               }
+    //         }else{
+    //             let check = true;
+    //             for (let ch = 0; ch < parseInt(this.flrConn.length); ch++) {
+    //                 if (
+    //                   this.visited[parseInt(this.flrConn[ch][0])][
+    //                     parseInt(this.flrConn[ch][1])
+    //                   ] === 1
+    //                 ) {
+    //                 } else {
+    //                   check = false;
+    //                 }
+    //               }
+    //               if (check === true) {
+    //                 for (let ch = 0; ch < parseInt(this.flrConn.length); ch++) {
+    //                   var vert = srcFloor + "," + srcVal + "," + "virtual";
+    //                   this.graph.addEdge(
+    //                     vert,
+    //                     this.flrConn[ch][2],
+    //                     this.minimumCost[parseInt(this.flrConn[ch][0])][
+    //                       parseInt(this.flrConn[ch][1])
+    //                     ],
+    //                     true
+    //                   );
+    //                 }
+    //                 this.resetVar();
+    //                 break;
+    //               }
+    //             }
+    //             this.leaves.shift();
+    //             let p1 = minLeave[0],p2=minLeave[1];
+    //             checkLeaves.set(minLeave,0);
+    //             let j;
+    //             let k;
+    //             if (p1 - 1 >= 0) {
+    //                 j = p1 - 1;
+    //                 k = p2;
+    //                 if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+    //                   if (
+    //                     this.minimumCost[j][k] >
+    //                     this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       )
+    //                   ) {
+    //                     this.minimumCost[j][k] =
+    //                       this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       );
+    //                     this.shortestPath[j][k] = this.shortestPath[minLeave[0]][
+    //                       minLeave[1]
+    //                     ].concat([[j, k]]);
+    //                     var jk = [j, k];
+    //                     if (
+    //                       checkLeaves.get(jk) === undefined ||
+    //                       checkLeaves.get(jk) === 0
+    //                     ) {
+    //                       this.leaves.push(jk);
+    //                       checkLeaves.set(jk, 1);
+    //                     }
+    //                   }
+    //                 }
+    //               }
+    //               //
+    //               if (p1 + 1 < m) {
+    //                 j = p1 + 1;
+    //                 k = p2;
+    //                 if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+    //                   if (
+    //                     this.minimumCost[j][k] >
+    //                     this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       )
+    //                   ) {
+    //                     this.minimumCost[j][k] =
+    //                       this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       );
+    //                     this.shortestPath[j][k] = this.shortestPath[minLeave[0]][
+    //                       minLeave[1]
+    //                     ].concat([[j, k]]);
+    //                     var jk = [j, k];
+    //                     if (
+    //                       checkLeaves.get(jk) === undefined ||
+    //                       checkLeaves.get(jk) === 0
+    //                     ) {
+    //                       this.leaves.push(jk);
+    //                       checkLeaves.set(jk, 1);
+    //                     }
+    //                   }
+    //                 }
+    //               }
+    //               //
+    //               if (p2 - 1 >= 0) {
+    //                 j = p1;
+    //                 k = p2 - 1;
+    //                 if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+    //                   if (
+    //                     this.minimumCost[j][k] >
+    //                     this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       )
+    //                   ) {
+    //                     this.minimumCost[j][k] =
+    //                       this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       );
+    //                     this.shortestPath[j][k] = this.shortestPath[minLeave[0]][
+    //                       minLeave[1]
+    //                     ].concat([[j, k]]);
+    //                     var jk = [j, k];
+    //                     if (
+    //                       checkLeaves.get(jk) == undefined ||
+    //                       checkLeaves.get(jk) == 0
+    //                     ) {
+    //                       this.leaves.push(jk);
+    //                       checkLeaves.set(jk, 1);
+    //                     }
+    //                   }
+    //                 }
+    //               }
+    //               //
+    //               if (p2 + 1 < n) {
+    //                 j = p1;
+    //                 k = p2 + 1;
+    //                 if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+    //                   if (
+    //                     this.minimumCost[j][k] >
+    //                     this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       )
+    //                   ) {
+    //                     this.minimumCost[j][k] =
+    //                       this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       );
+    //                     this.shortestPath[j][k] = this.shortestPath[minLeave[0]][
+    //                       minLeave[1]
+    //                     ].concat([[j, k]]);
+    //                     var jk = [j, k];
+    //                     if (
+    //                       checkLeaves.get(jk) === undefined ||
+    //                       checkLeaves.get(jk) === 0
+    //                     ) {
+    //                       this.leaves.push(jk);
+    //                       checkLeaves.set(jk, 1);
+    //                     }
+    //                   }
+    //                 }
+    //               }
+    //               //
+    //               if (p1 - 1 >= 0 && p2 - 1 >= 0) {
+    //                 j = p1 - 1;
+    //                 k = p2 - 1;
+    //                 if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+    //                   if (
+    //                     this.minimumCost[j][k] >
+    //                     this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       )
+    //                   ) {
+    //                     this.minimumCost[j][k] =
+    //                       this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       );
+    //                     this.shortestPath[j][k] = this.shortestPath[minLeave[0]][minLeave[1]].concat([[j, k]]);
+    //                     var jk = [j, k];
+    //                     if (
+    //                       checkLeaves.get(jk) === undefined ||
+    //                       checkLeaves.get(jk) === 0
+    //                     ) {
+    //                       this.leaves.push(jk);
+    //                       checkLeaves.set(jk, 1);
+    //                     }
+    //                   }
+    //                 }
+    //               }
+    //               //
+    //               if (p1 - 1 >= 0 && p2 + 1 < n) {
+    //                 j = p1 - 1;
+    //                 k = p2 + 1;
+    //                 if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+    //                   if (
+    //                     this.minimumCost[j][k] >
+    //                     this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       )
+    //                   ) {
+    //                     this.minimumCost[j][k] =
+    //                       this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       );
+    //                     this.shortestPath[j][k] = this.shortestPath[minLeave[0]][
+    //                       minLeave[1]
+    //                     ].concat([[j, k]]);
+    //                     var jk = [j, k];
+    //                     if (
+    //                       checkLeaves.get(jk) == undefined ||
+    //                       checkLeaves.get(jk) == 0
+    //                     ) {
+    //                       this.leaves.push(jk);
+    //                       checkLeaves.set(jk, 1);
+    //                     }
+    //                   }
+    //                 }
+    //               }
+    //               //
+    //               if (p1 + 1 < m && p2 - 1 >= 0) {
+    //                 j = p1 + 1;
+    //                 k = p2 - 1;
+    //                 if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+    //                   if (
+    //                     this.minimumCost[j][k] >
+    //                     this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       )
+    //                   ) {
+    //                     this.minimumCost[j][k] =
+    //                       this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       );
+    //                     this.shortestPath[j][k] = this.shortestPath[minLeave[0]][
+    //                       minLeave[1]
+    //                     ].concat([[j, k]]);
+    //                     var jk = [j, k];
+    //                     if (
+    //                       checkLeaves.get(jk) == undefined ||
+    //                       checkLeaves.get(jk) == 0
+    //                     ) {
+    //                       this.leaves.push(jk);
+    //                       checkLeaves.set(jk, 1);
+    //                     }
+    //                   }
+    //                 }
+    //               }
+    //               //
+    //               if (p1 + 1 < m && p2 + 1 < n) {
+    //                 j = p1 + 1;
+    //                 k = p2 + 1;
+    //                 if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+    //                   if (
+    //                     this.minimumCost[j][k] >
+    //                     this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       )
+    //                   ) {
+    //                     this.minimumCost[j][k] =
+    //                       this.minimumCost[minLeave[0]][minLeave[1]] +
+    //                       Math.sqrt(
+    //                         (minLeave[0] - j) * (minLeave[0] - j) +
+    //                           (minLeave[1] - k) * (minLeave[1] - k)
+    //                       );
+    //                     this.shortestPath[j][k] = this.shortestPath[minLeave[0]][
+    //                       minLeave[1]
+    //                     ].concat([[j, k]]);
+    //                     var jk = [j, k];
+    //                     if (
+    //                       checkLeaves.get(jk) === undefined ||
+    //                       checkLeaves.get(jk) === 0
+    //                     ) {
+    //                       this.leaves.push(jk);
+    //                       checkLeaves.set(jk, 1);
+    //                     }
+    //                   }
+    //                 }
+    //               }
+    //         }
+    //         if (single === true) {
+    //             let { scale } = this.state;
+    //             var canvas = document.getElementById(canvasId);
+    //             var context = canvas.getContext("2d");
+    //             for (var i = 0; i < this.shortestPath[destX][destY].length; i = i + 2) {
+    //               context.beginPath();
+    //               var half_scale = scale / 2;
+    //               var posX = scale * this.shortestPath[destX][destY][i][0];
+    //               var posY = scale * this.shortestPath[destX][destY][i][1];
+    //               posX = posX + half_scale;
+    //               posY = posY + half_scale;
+    //               context.arc(posX, posY, scale / 2, 0, 2 * Math.PI);
+    //               context.fill();
+    //               context.fillStyle = "#669df6";
+    //               context.strokeStyle = "#3077dd";
+    //               context.stroke();
+    //             }
+    //             this.resetVar();
+    //           }
+    //     }
+
+
+    callWhile(srcfloor, srcVal, m, n, dest_x, dest_y, single, canvasid) {
+      var min = Number.MAX_VALUE;
+      var minleave = [];
+      var var_i;
+      var notthere;
+      for (let i = 0; i < m; i++) {
+        var row = [],
+          row1 = [],
+          row3 = [],
+          row4 = [];
+        for (let j = 0; j < n; j++) {
+          row.push(1);
+          row1.push(-1);
+          row3.push(Number.MAX_VALUE);
+          var row5 = [];
+          row4.push(row5);
+        }
+        this.shortestPath.push(row4);
+        this.grids.push(row);
+        this.visited.push(row1);
+        this.minimumCost.push(row3);
+      }
+      var ind1 = this.findFloor(srcfloor, this.allGrids);
+      if (this.allGrids[ind1].grid_1 != null) {
+        for (let i = 0; i < this.allGrids[ind1].grid_1.length; i++) {
+          var nodes = this.allGrids[ind1].grid_1[i].split(",");
+          for (let j = 0; j < nodes.length; j++) {
+            var val = nodes[j];
+            var x = val % m;
+            var y = parseInt(val / m);
+            this.grids[x][y] = 0;
+          }
+        }
+      }
+      var src_x = srcVal % m;
+      var src_y = parseInt(srcVal / m);
+      let check_leaves = new Map();
+      this.leaves.push([src_x, src_y]);
+      check_leaves.set([src_x, src_y], 1);
+      this.shortestPath[src_x][src_y].push([src_x, src_y]);
+      this.minimumCost[src_x][src_y] = 0;
+      while (this.leaves.length > 0) {
+        min = Number.MAX_VALUE;
+        minleave = this.leaves[0];
+        min = this.minimumCost[minleave[0]][minleave[1]];
+        var_i = 0;
+        this.visited[minleave[0]][minleave[1]] = 1;
+        if (single == true) {
+          if (minleave[0] == dest_x && minleave[1] == dest_y) {
+            break;
+          }
+        } else {
+          var check = true;
+          for (var ch = 0; ch < parseInt(this.flrconn.length); ch++) {
+            if (
+              this.visited[parseInt(this.flrconn[ch][0])][
+                parseInt(this.flrconn[ch][1])
+              ] == 1
+            ) {
+            } else {
+              check = false;
+            }
+          }
+          if (check == true) {
+            for (var ch = 0; ch < parseInt(this.flrconn.length); ch++) {
+              var vert = srcfloor + "," + srcVal + "," + "virtual";
+              this.graph.addEdge(
+                vert,
+                this.flrconn[ch][2],
+                this.minimumCost[parseInt(this.flrconn[ch][0])][
+                  parseInt(this.flrconn[ch][1])
+                ],
+                true
+              );
+            }
+            this.reset_var();
+            break;
+          }
+        }
+        this.leaves.shift();
+        var p1 = minleave[0],
+          p2 = minleave[1];
+        check_leaves.set(minleave, 0);
+        var j;
+        var k;
+        if (p1 - 1 >= 0) {
+          j = p1 - 1;
+          k = p2;
+          if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+            if (
+              this.minimumCost[j][k] >
+              this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                )
+            ) {
+              this.minimumCost[j][k] =
+                this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                );
+              this.shortestPath[j][k] = this.shortestPath[minleave[0]][
+                minleave[1]
+              ].concat([[j, k]]);
+              var jk = [j, k];
+              if (
+                check_leaves.get(jk) == undefined ||
+                check_leaves.get(jk) == 0
+              ) {
+                this.leaves.push(jk);
+                check_leaves.set(jk, 1);
+              }
+            }
+          }
+        }
+        if (p1 + 1 < m) {
+          j = p1 + 1;
+          k = p2;
+          if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+            if (
+              this.minimumCost[j][k] >
+              this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                )
+            ) {
+              this.minimumCost[j][k] =
+                this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                );
+              this.shortestPath[j][k] = this.shortestPath[minleave[0]][
+                minleave[1]
+              ].concat([[j, k]]);
+              var jk = [j, k];
+              if (
+                check_leaves.get(jk) == undefined ||
+                check_leaves.get(jk) == 0
+              ) {
+                this.leaves.push(jk);
+                check_leaves.set(jk, 1);
+              }
+            }
+          }
+        }
+        if (p2 - 1 >= 0) {
+          j = p1;
+          k = p2 - 1;
+          if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+            if (
+              this.minimumCost[j][k] >
+              this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                )
+            ) {
+              this.minimumCost[j][k] =
+                this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                );
+              this.shortestPath[j][k] = this.shortestPath[minleave[0]][
+                minleave[1]
+              ].concat([[j, k]]);
+              var jk = [j, k];
+              if (
+                check_leaves.get(jk) == undefined ||
+                check_leaves.get(jk) == 0
+              ) {
+                this.leaves.push(jk);
+                check_leaves.set(jk, 1);
+              }
+            }
+          }
+        }
+        if (p2 + 1 < n) {
+          j = p1;
+          k = p2 + 1;
+          if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+            if (
+              this.minimumCost[j][k] >
+              this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                )
+            ) {
+              this.minimumCost[j][k] =
+                this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                );
+              this.shortestPath[j][k] = this.shortestPath[minleave[0]][
+                minleave[1]
+              ].concat([[j, k]]);
+              var jk = [j, k];
+              if (
+                check_leaves.get(jk) == undefined ||
+                check_leaves.get(jk) == 0
+              ) {
+                this.leaves.push(jk);
+                check_leaves.set(jk, 1);
+              }
+            }
+          }
+        }
+        if (p1 - 1 >= 0 && p2 - 1 >= 0) {
+          j = p1 - 1;
+          k = p2 - 1;
+          if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+            if (
+              this.minimumCost[j][k] >
+              this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                )
+            ) {
+              this.minimumCost[j][k] =
+                this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                );
+              this.shortestPath[j][k] = this.shortestPath[minleave[0]][
+                minleave[1]
+              ].concat([[j, k]]);
+              var jk = [j, k];
+              if (
+                check_leaves.get(jk) == undefined ||
+                check_leaves.get(jk) == 0
+              ) {
+                this.leaves.push(jk);
+                check_leaves.set(jk, 1);
+              }
+            }
+          }
+        }
+        if (p1 - 1 >= 0 && p2 + 1 < n) {
+          j = p1 - 1;
+          k = p2 + 1;
+          if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+            if (
+              this.minimumCost[j][k] >
+              this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                )
+            ) {
+              this.minimumCost[j][k] =
+                this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                );
+              this.shortestPath[j][k] = this.shortestPath[minleave[0]][
+                minleave[1]
+              ].concat([[j, k]]);
+              var jk = [j, k];
+              if (
+                check_leaves.get(jk) == undefined ||
+                check_leaves.get(jk) == 0
+              ) {
+                this.leaves.push(jk);
+                check_leaves.set(jk, 1);
+              }
+            }
+          }
+        }
+        if (p1 + 1 < m && p2 - 1 >= 0) {
+          j = p1 + 1;
+          k = p2 - 1;
+          if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+            if (
+              this.minimumCost[j][k] >
+              this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                )
+            ) {
+              this.minimumCost[j][k] =
+                this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                );
+              this.shortestPath[j][k] = this.shortestPath[minleave[0]][
+                minleave[1]
+              ].concat([[j, k]]);
+              var jk = [j, k];
+              if (
+                check_leaves.get(jk) == undefined ||
+                check_leaves.get(jk) == 0
+              ) {
+                this.leaves.push(jk);
+                check_leaves.set(jk, 1);
+              }
+            }
+          }
+        }
+        if (p1 + 1 < m && p2 + 1 < n) {
+          j = p1 + 1;
+          k = p2 + 1;
+          if (this.visited[j][k] == -1 && this.grids[j][k] == 1) {
+            if (
+              this.minimumCost[j][k] >
+              this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                )
+            ) {
+              this.minimumCost[j][k] =
+                this.minimumCost[minleave[0]][minleave[1]] +
+                Math.sqrt(
+                  (minleave[0] - j) * (minleave[0] - j) +
+                    (minleave[1] - k) * (minleave[1] - k)
+                );
+              this.shortestPath[j][k] = this.shortestPath[minleave[0]][
+                minleave[1]
+              ].concat([[j, k]]);
+              var jk = [j, k];
+              if (
+                check_leaves.get(jk) == undefined ||
+                check_leaves.get(jk) == 0
+              ) {
+                this.leaves.push(jk);
+                check_leaves.set(jk, 1);
+              }
+            }
+          }
+        }
+      }
+      if (single == true) {
+        let { scale } = this.state;
+        var canvas = document.getElementById(canvasid);
+        var context = canvas.getContext("2d");
+        for (var i = 0; i < this.shortestPath[dest_x][dest_y].length; i = i + 2) {
+          context.beginPath();
+          var half_scale = scale / 2;
+          var pos_x = scale * this.shortestPath[dest_x][dest_y][i][0];
+          var pos_y = scale * this.shortestPath[dest_x][dest_y][i][1];
+          pos_x = pos_x + half_scale;
+          pos_y = pos_y + half_scale;
+          context.arc(pos_x, pos_y, scale / 2, 0, 2 * Math.PI);
+          context.fill();
+          context.fillStyle = "#669df6";
+          context.strokeStyle = "#3077dd";
+          context.stroke();
+          this.xCoord.push(this.shortestPath[dest_x][dest_y][i][0]);
+          this.yCoord.push(this.shortestPath[dest_x][dest_y][i][1])
+          }
+
+        this.resetVar();
+      }
+    }
+
+        resetVar  = ()=>{
+            this.grids = [];
+            this.visited = [];
+            this.shortestPath = [];
+            this.minimumCost = [];
+            this.leaves = [];
+            this.props.getImage[1] = "";
+        }
+
+    redraw=(img1,canvas,ctx)=>{
+        // Clear the entire canvas
+        console.log("images and canvases");
+        let { srcVal,srcFloor,dstFloor,dstVal,srcFloorL,srcFloorB} = this.state;
+        var p1 = this.ctx.transformedPoint(0,0);
+        var p2 = this.ctx.transformedPoint(canvas.width,canvas.height);
+        ctx.clearRect(p1.x,p1.y,p2.x-p1.x,p2.y-p1.y);
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.restore();
+
+        let destX  = this.state.dstVal % this.state.dstFloorL;
+        let destY = parseInt(this.state.dstVal / this.state.dstFloorL);
+        this.callWhile(srcFloor,srcVal,srcFloorL,srcFloorB,destX,destY,true,"myCanvassrc");
+        
+        
+          let xMin =  Math.min( ...this.xCoord );
+          let ind1 = this.xCoord.indexOf(xMin)
+          console.log("ind1",ind1)
+          let xMax  = Math.max( ...this.xCoord );
+          let ind2 = this.xCoord.indexOf(xMax)
+          this.xMinPair = {x:xMin,y:this.yCoord[ind1]};
+          this.xMaxPair =  {x:xMax,y:this.yCoord[ind2]};
+
+
+          let yMin  = Math.min( ...this.yCoord);
+          let ind3 = this.yCoord.indexOf(yMin)
+          let yMax  = Math.max( ...this.yCoord);
+          let ind4 = this.yCoord.indexOf(yMin);
+          this.yMinPair = {x:this.xCoord[ind3],y:yMin};
+          this.yMaxPair = {x:this.xCoord[ind4],y:yMax};
+        
+        let xLists =   this.xCoord.sort(function(a, b){return a - b});
+        let yLists = this.yCoord.sort(function(a, b){return a - b})
+        // console.log("x and y lists",this.xMinPair,this.yMinPair,this.xMaxPair,this.yMaxPair)
+        let xR = this.xMaxPair.x - this.xMinPair.x;
+        let yR = this.yMaxPair.y - this.yMinPair.y;
+        let minXY = xR > yR ? yR : xR
+        let scaleCw = canvas.width / minXY;
+        let scaleCh  = canvas.height / minXY;
+        let maxScale = scaleCw > scaleCh? scaleCw :scaleCh;
+        console.log("minxyy",xR,yR,maxScale);
+
+        ctx.drawImage(
+          img1,
+          // 0,
+          // 0,
+          // img1.width,
+          // img1.width,
+           -xR,
+           -yR,
+           maxScale*canvas.width ,
+           maxScale*canvas.height
+        );
+                // xLists[0],
+        // yLists[1],
+        // xLists[xLists.length-1],
+        // yLists[xLists.length-1],
+        // this.callWhile(srcFloor,srcVal,srcFloorL,srcFloorB,destX,destY,true,"myCanvassrc");
+          
+        this.colorCanvas(srcVal,"srcmap","red");
+        this.colorCanvas(dstVal,"srcmap","green");
+        // this.handleSubmit();
+    }
+// 
+    mouseDown = (evt)=>{
+        let {canvas} = this.state;
+        document.body.style.mozUserSelect = document.body.style.webkitUserSelect = document.body.style.userSelect = 'none';
+        if(canvas !== null){
+            this.lastX = evt.offsetX || (evt.pageX - canvas.offsetLeft);
+            this.lastY = evt.offsetY || (evt.pageY - canvas.offsetTop);
+            this.dragStart = this.ctx.transformedPoint(this.lastX,this.lastY);
+            this.dragged = false;   
+        }
+        return false;
+    }
+
+    mouseMove = (evt)=>{
+        let {img1,ctx,canvas} = this.state
+
+        if(this.state.canvas !== null){
+            this.lastX = evt.offsetX || (evt.pageX - this.canvas.offsetLeft);
+            this.lastY = evt.offsetY || (evt.pageY - this.canvas.offsetTop);
+            this.dragged = true;
+            if (this.dragStart){
+              console.log("dragges")
+              var pt = this.ctx.transformedPoint(this.lastX,this.lastY);
+              this.ctx.translate(pt.x-this.dragStart.x,pt.y-this.dragStart.y);
+              this.redraw(img1,canvas,ctx);
+            }    
+        }
+        return false;
+    }
+
+    mouseUp = (evt)=>{
+        this.dragStart = null;
+        if(!this.dragged){
+            this.zoom(evt.shiftKey ? -1:1);
+        }
+        return false
+    }
+    DOMouseScroll = ()=>{
+        this.handleScroll();
+        return false;
+    }
+    mouseWheel = (evt)=>{
+        this.handleScroll(evt)
+        return false;
+    }
+
+     zoom = (clicks)=>{
+      let {img1,ctx,canvas} = this.state;
+        // var pt = this.ctx.transformedPoint(this.lastX,this.lastY);
+        // this.ctx.translate(pt.x,pt.y);
+        var factor = Math.pow(this.state.scaleFactor,clicks);
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+        this.ctx.scale(factor,factor);
+        this.ctx.translate(-this.lastX,-this.lastY);
+        this.redraw(img1,canvas,ctx);
+    }
+
+     handleScroll = (evt)=>{
+        var delta = evt.deltaY ? evt.deltaY/40 : evt.detail ? -evt.detail : 0;
+        if (delta) this.zoom(delta);
+        return evt.preventDefault() && false;
+    };
+
+    touchStart =(e)=>{
+      this.lastX          = null;
+      this.lastY          = null;
+      this.lastZoomScale  = null;
+      console.log("touchj started")
+      this.dragStart = this.ctx.transformedPoint(this.lastX,this.lastY);
+      this.dragged = false;   
+  }
+
+  touchMove = (e)=>{
+    e.preventDefault();
+    console.log("imagessssss",this.img1,this.canvas,this.ctx)
+
+    if(e.targetTouches.length === 2) { 
+        this.doZoom(this.gesturePinchZoom(e));
+        this.animate()
+    }
+    else if(e.targetTouches.length === 1) {
+        // var relativeX = e.targetTouches[0].pageX - this.canvas.getBoundingClientRect().left;
+        // var relativeY = e.targetTouches[0].pageY - this.canvas.getBoundingClientRect().top;      
+        if(this.state.canvas !== null){
+          var rect = e.target.getBoundingClientRect();
+// var x = e.targetTouches[0].pageX - rect.left;
+// var y = e.targetTouches[0].pageY - rect.top;
+          var relativeX = e.clientX ||e.targetTouches[0].pageX - rect.left;
+          var relativeY = e.clientY || e.targetTouches[0].pageY - rect.top;   
+          this.dragged = true;
+          if (this.dragStart){
+            var pt = this.ctx.transformedPoint(relativeX,relativeY);
+            this.ctx.translate(pt.x-this.dragStart.x,pt.y-this.dragStart.y);
+            this.redraw(this.img1,this.canvas,this.ctx);
+          }    
+      }
+      return false;
+        // this.mouseMove(relativeX,relativeY)          
+        // this.doMove(relativeX, relativeY);
+    }
+  }
+
+  doZoom = (zoom)=>{
+    if(!zoom) return;
+    //new scale
+    var currentScale = this.scale.x;
+    var newScale = this.scale.x + zoom/100;
+    //some helpers
+    var deltaScale = newScale - currentScale;
+    var currentWidth    = (this.imgDiv.width * this.scale.x);
+    var currentHeight   = (this.imgDiv.height * this.scale.y);
+    var deltaWidth  = this.imgDiv.width*deltaScale;
+    var deltaHeight = this.imgDiv.height*deltaScale;
+
+
+    //by default scale doesnt change position and only add/remove pixel to right and bottom
+    //so we must move the image to the left to keep the image centered
+    //ex: coefX and coefY = 0.5 when image is centered <=> move image to the left 0.5x pixels added to the right
+    var canvasmiddleX = this.canvas.clientWidth / 2;
+    var canvasmiddleY = this.canvas.clientHeight / 2;
+    var xonmap = (-this.position.x) + canvasmiddleX;
+    var yonmap = (-this.position.y) + canvasmiddleY;
+    var coefX = -xonmap / (currentWidth);
+    var coefY = -yonmap / (currentHeight);
+    var newPosX = this.position.x + deltaWidth*coefX;
+    var newPosY = this.position.y + deltaHeight*coefY;
+
+    //edges cases
+    var newWidth = currentWidth + deltaWidth;
+    var newHeight = currentHeight + deltaHeight;
+    
+    if( newWidth < this.canvas.clientWidth ) return;
+    if( newPosX > 0 ) { newPosX = 0; }
+    if( newPosX + newWidth < this.canvas.clientWidth ) { newPosX = this.canvas.clientWidth - newWidth;}
+    
+    if( newHeight < this.canvas.clientHeight ) return;
+    if( newPosY > 0 ) { newPosY = 0; }
+    if( newPosY + newHeight < this.canvas.clientHeight ) { newPosY = this.canvas.clientHeight - newHeight; }
+
+    //finally affectations
+    this.scale.x    = newScale;
+    this.scale.y    = newScale;
+    this.position.x = newPosX;
+    this.position.y = newPosY;
+  }
+
+
+    gesturePinchZoom = (e)=>{
+      let zoom = false;
+      if( e.targetTouches.length >= 2 ) {
+          var p1 = e.targetTouches[0];
+          var p2 = e.targetTouches[1];
+          var zoomScale = Math.sqrt(Math.pow(p2.pageX - p1.pageX, 2) + Math.pow(p2.pageY - p1.pageY, 2)); //euclidian distance
+          if( this.lastZoomScale ) {
+              zoom = zoomScale - this.lastZoomScale;
+          }
+          this.lastZoomScale = zoomScale;
+      }    
+
+      return zoom;
+    }
+
+    doMove = (relativeX,relativeY)=>{
+      if(this.lastX && this.lastY) {
+          var deltaX = relativeX - this.lastX;
+          var deltaY = relativeY - this.lastY;
+          console.log("deltax and y",deltaY)
+          var currentWidth = (this.img.width * this.scale.x);
+          var currentHeight = (this.img.height * this.scale.y);
+          this.position.x += deltaX;
+          this.position.y += deltaY;
+          if( this.position.x > 0 ) {
+            this.position.x = 0;
+          }
+          else if( this.position.x + currentWidth < this.canvas.clientWidth ) {
+            this.position.x = this.canvas.clientWidth - currentWidth;
+          }
+          if( this.position.y > 0 ) {
+            this.position.y = 0;
+          }
+          else if( this.position.y + currentHeight < this.canvas.clientHeight ) {
+            this.position.y = this.canvas.clientHeight - currentHeight;
+          }
+        }
+        this.lastX = relativeX;
+        this.lastY = relativeY;
+        this.animate()
+      //   if(this.state.canvas !== null){
+      //     this.dragged = true;
+      //     if (this.dragStart){
+      //       var pt = this.ctx.transformedPoint(this.lastX,this.lastY);
+      //       this.ctx.translate(pt.x-this.dragStart.x,pt.y-this.dragStart.y);
+      //       this.redraw(this.img1,this.canvas,this.ctx);
+      //     }    
+      // }
+      }
+
+  animate = ()=>{
+    if(!this.init){
+      if(this.state.srcVal){
+        if(this.imgDiv.width){
+          var scaleRatio = null;
+          if(this.canvas.clientWidth > this.canvas.clientHeight) {
+              scaleRatio = this.canvas.clientWidth / this.imgDiv.width;
+          }
+          else {
+              scaleRatio = this.canvas.clientHeight / this.imgDiv.height;
+          }
+          this.setState({
+            scale: scaleRatio
+          })
+          this.scale.x = scaleRatio;
+          this.scale.y = scaleRatio;
+          this.init = true;
+      }
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      let imgDiv =document.getElementById("myImage");
+      this.redraw(this.img,this.canvas,this.ctx);              
+      imgDiv.onload = ()=>{
+          this.ctx.drawImage(imgDiv,0,0,imgDiv.width,imgDiv.height,0,0,this.canvas.width,this.canvas.height)
+     }
+     this.ctx.drawImage(
+      this.img, 
+      this.position.x, this.position.y, 
+      this.canvas.width, 
+      this.canvas.height);
+      }
+    }
+  }
+
+	 trackTransforms = (ctx) => {
+      var svg = document.createElementNS("http://www.w3.org/2000/svg",'svg');
+      var xform = svg.createSVGMatrix();
+      ctx.getTransform = function(){ return xform; };
+      var savedTransforms = [];
+      var save = ctx.save;
+      ctx.save = function(){
+          savedTransforms.push(xform.translate(0,0));
+          return save.call(ctx);
+      };
+      var restore = ctx.restore;
+      ctx.restore = function(){
+        xform = savedTransforms.pop();
+        return restore.call(ctx);
+		      };
+      var scale = ctx.scale;
+      ctx.scale = function(sx,sy){
+        xform = xform.scaleNonUniform(sx,sy);
+        return scale.call(ctx,sx,sy);
+		      };
+      var rotate = ctx.rotate;
+      ctx.rotate = function(radians){
+          xform = xform.rotate(radians*180/Math.PI);
+          return rotate.call(ctx,radians);
+      };
+    
+      var translate = ctx.translate;
+      ctx.translate = function(dx,dy){
+          xform = xform.translate(dx,dy);
+          return translate.call(ctx,dx,dy);
+      };
+    
+      var transform = ctx.transform;
+      ctx.transform = function(a,b,c,d,e,f){
+          var m2 = svg.createSVGMatrix();
+          m2.a=a; m2.b=b; m2.c=c; m2.d=d; m2.e=e; m2.f=f;
+          xform = xform.multiply(m2);
+          return transform.call(ctx,a,b,c,d,e,f);
+      };
+    
+      var setTransform = ctx.setTransform;
+      ctx.setTransform = function(a,b,c,d,e,f){
+          xform.a = a;
+          xform.b = b;
+          xform.c = c;
+          xform.d = d;
+          xform.e = e;
+          xform.f = f;
+          return setTransform.call(ctx,a,b,c,d,e,f);
+      };
+    
+      var pt  = svg.createSVGPoint();
+      ctx.transformedPoint = function(x,y){
+          pt.x=x; pt.y=y;
+          return pt.matrixTransform(xform.inverse());
+      }
+    }
+    
+    toggle = (type, value) => event => {
+      this.setState(state => {
+        return {
+          [type]: value
+        };
+      });
+    };
+
+    incCanvas = () => {
+      var animate = document.getElementById("animate");
+      var ctx = animate.getContext("2d");
+      ctx.clearRect(0, 0, animate.width, animate.height);
+      let { scale } = this.state;
+      if (scale < 30) {
+        this.setState(
+          {
+            scale: scale + 1
+          },
+          () => {
+            var factor = Math.pow(this.state.scaleFactor,1);
+            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    
+            this.ctx.scale(factor,factor);
+            this.ctx.translate(-this.lastX,-this.lastY);
+            // this.redraw(img1,canvas,ctx);
+
+            this.redraw(this.img1,this.canvas,this.ctx);
+            // this.handleSubmit();
+          }
+        );
+      }
+    };
+  
+    decCanvas = () => {
+      let { scale } = this.state;
+      var animate = document.getElementById("animate");
+      var ctx = animate.getContext("2d");
+      ctx.clearRect(0, 0, animate.width, animate.height);
+      if (scale > 2) {
+        this.setState(
+          {
+            scale: scale - 1
+          },
+          () => {
+            this.redraw(this.img1,this.canvas,this.ctx)
+            // this.handleSubmit();
+          }
+        );
+      }
+    };
+
+    render(){
+      const { sidebarLeft } = this.state;
+        return(
+            <div>
+                    {this.state.showLayer?<LayerModal open={this.state.showLayer}/>:null}
+        <nav className={"shadow-sm navbar navbar-light bg-dark navigation " + (this.state.slide? 'slide' : '') } style={{width:"75%",display:"flex",justifyContent: "center",marginLeft: "12.5%",marginTop: "12.5%",background: "linear-gradient(to bottom , #09203f, #1d4a6d  )"}} >
+          <div className="d-flex">
+            <div className="d-flex-column">
+              <div className="flex-shrink-1 bd-highlight">
+                <button
+                  className="navbar-toggler hidden-sm-up float-xs-left"
+                  type="button"
+                  data-toggle="collapse"
+                  data-target="#navbarSupportedContent"
+                  aria-controls="navbarSupportedContent"
+                  aria-expanded="false"
+                  aria-label="Toggle navigation"
+                  onClick={this.toggle("sidebarLeft", true)}
+                >
+                  <i
+                    class="fa fa-bars text-white mt-1"
+                    style={{ fontSize: "24px" }}
+                  ></i>
+                </button>
+                <Drawer
+                  open={sidebarLeft}
+                  onRequestClose={this.toggle("sidebarLeft", false)}
+                  modalElementClass={Sidebar}
+                  direction="left"
+                >
+                  <div className={Card}>
+                    <div className=" navbar-menu-wrapper d-flex align-items-stretch">
+                      <ul className="ml-3 navbar-nav navbar-nav-right">
+                        <li className="mt-5 mb-3">
+                          <Link to="/">
+                            <span className="mb-3 h3 text-white">
+                              <i className="fa fa-home mr-2"></i>Home
+                            </span>
+                          </Link>
+                        </li>
+                        <li className="mt-2 mb-3">
+                          <Link to="/about-us">
+                            <span className=" h3 text-white">
+                              <i className="fa fa-group mr-2"></i>About Us
+                            </span>
+                          </Link>
+                        </li>
+                        <li className="mt-2 mb-3">
+                          <Link to="/how-to-use">
+                            <span className=" h3 text-white">
+                              <i className="fa fa-info-circle mr-2"></i>How To
+                              Use
+                            </span>
+                          </Link>
+                        </li>
+                        <li className="mt-2 mb-3">
+                          <Link to="/feedback">
+                            <span className=" h3 text-white">
+                              <i className="fa fa-paper-plane-o mr-2"></i>Send
+                              Feedback
+                            </span>
+                          </Link>
+                        </li>
+                        <li className="mt-2 mb-3">
+                          <Link to="/support">
+                            <span className=" h3 text-white">
+                              <i className="fa fa-question-circle mr-2"></i>
+                              Support
+                            </span>
+                          </Link>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </Drawer>
+              </div>
+              <Link to="/">
+                <i
+                  class="fa fa-arrow-left text-white mt-2 ml-2"
+                  style={{ fontSize: "24px" }}
+                ></i>
+              </Link>
+            </div>
+            <div className="w-100 bd-highlight">
+              <div className="d-flex-column mr-2">
+                <div className="d-flex mb-2">
+                  <Typeahead
+                    placeholder="Starting Point"
+                    isLoading={this.state.isLoading}
+                    required
+                    filterBy={["name"]}
+                    labelKey={option => `${option.name}`}
+                    onChange={this.srcChange}
+                    disabled={false}
+                    id="type"
+                    value={this.state.srcName}
+                    options={this.state.allNodes}
+                    name="list"
+                  />
+                 <Link to="ar"> <i class="text-white fa fa-bullseye mt-2 ml-2" style={{fontSize:"24px"}}></i></Link>
+                </div>
+                <div className="d-flex">
+                  <Typeahead
+                    placeholder="Destination Point"
+                    isLoading={this.state.isLoading}
+                    required
+                    filterBy={["name"]}
+                    labelKey={option => `${option.name}`}
+                    onChange={this.dstChange}
+                    disabled={false}
+                    id="type"
+                    value={this.state.dstName}
+                    options={this.state.allNodes}
+                    name="list"
+                  />
+                  <i class="text-white fa fa-map-marker mt-2 ml-2" style={{fontSize:"24px"}} ></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </nav>
+                    <div className="mt-1 canvaDiv">
+        <div
+          class="btn-group-vertical zoom "
+          role="group"
+          aria-label="Basic example"
+          style={{ position: "fixed", zIndex: "5" }}
+        >
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onClick={this.incCanvas}
+          >
+            <i class="fa fa-search-plus"></i>{" "}
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onClick={this.decCanvas}
+          >
+            <i class="fa fa-search-minus"></i>{" "}
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onClick={this.showLayer}
+          >
+            <i class="material-icons" >filter_none</i>
+          </button>
+        </div>
+        <img
+          alt="map"
+          id="myImage"
+          src={`${config.imgUrl}${this.props.getImage[1]}`}
+          style={{ position: "absolute", zIndex: "-1" }}
+          hidden={true}
+        ></img>
+        <div ref="mydiv1" id="mydiv1"></div>
+        <div className="canvaDiv" ref="canv" onScroll={this.handleScroll}>
+          <canvas
+            id="myCanvassrc"
+            width={this.state.scale * this.state.srcFloorL}
+            height={this.state.scale * this.state.srcFloorB}
+            onMouseDown = {this.mouseDown}
+            onMouseUp = {this.mouseUp}
+            onMouseMove = {this.mouseMove}
+            DOMouseScroll = {this.DOMouseScroll}
+            onWheel = {this.mouseWheel}
+            onTouchMove={this.touchMove}
+            onTouchStart = {this.touchStart}
+            style={{
+              border: "1px solid #ca2d2d",
+              position: "absolute",
+              zIndex: "1"
+            }}
+            hidden={!this.state.samefloor}
+          ></canvas>
+          <canvas
+            id="animate"
+            width={this.state.scale * this.state.srcFloorL}
+            height={this.state.scale * this.state.srcFloorB}
+            style={{
+              border: "1px solid #ca2d2d",
+              position: "absolute",
+              zIndex: "0"
+            }}
+            hidden={!this.state.sameFloor}
+          ></canvas>
+        </div>
+        <div ref="mydiv" id="mydiv"></div>
+      </div>
+            </div>
+        )
+    }
+}
+
+const mapStateToProps = state => {
+    return {
+      getImage: state.imgDetails,
+      allNodes: state.getAllElem,
+      fList: state.floorList
+    };
+  };
+  
+  export default connect(mapStateToProps, {
+    floorList,
+    imgDetails,
+    getAllElements
+  })(ZoomTest);

@@ -1,0 +1,607 @@
+  callimage(cnt, ans, count, clist, floorLlist) {
+    for (let ii = 0; ii < clist.length; ii++) {
+      let i = Array.from(ans.keys())[ii];
+      let ind = this.find_floor(i, this.props.fList);
+      this.props.imgDetails(
+        this.state.buildingName,
+        i,
+        this.props.fList[ind].fileName,
+        () => {
+          // let myDiv = document.getElementById("mydiv");
+          let canvas = window.d3
+            .select("#mydiv")
+            .append("canvas")
+            .attr("id", "canvas" + ii)
+            .attr("style", "border:1px solid;")
+            .attr("width", this.state.canvasWidth)
+            .attr("height", this.state.canvasHeight)
+            .call(
+              window.d3
+                .zoom()
+                .scaleExtent([1, 8])
+                .on("zoom", multiCanvasZoom)
+            );
+
+          let width = canvas.property("width");
+          // let btn = document.createElement("BUTTON");
+          // btn.innerHTML = "Navigate to Next Canvas";
+          // document.body.appendChild(btn);
+          let height = canvas.property("height");
+          // let active = window.d3.select(null);
+          let zoom1 = window.d3.zoom().on("zoom", multiCanvasZoom);
+          // let initialTransform = window.d3.zoomIdentity
+          // .translate(0, 0)
+          // .scale(1);
+          let ctx = canvas.node().getContext("2d");
+          let div = document.getElementById("mydiv1");
+          let img1 = new Image();
+          img1.src = `${config.imgUrl}${this.props.getImage[1]}`;
+          img1.hidden = true;
+          div.appendChild(img1);
+          let me = this;
+          let get_val = ans.get(i);
+          let loaded = false;
+          // function timer(ms) {
+          //   return new Promise(res => setTimeout(res, ms));
+          // }
+          // img1.onload = async () => {
+          //   multiCanvas();
+          // };
+
+          function multiCanvasZoom() {
+            var transform = window.d3.event.transform;
+            // console.log("width and height",width,height)
+            ctx.save();
+            ctx.clearRect(0, 0, width, height);
+            ctx.translate(transform.x, transform.y);
+            ctx.scale(transform.k, transform.k);
+            loaded = false;
+            multiCanvas();
+            ctx.restore();
+          }
+
+          function multiCanvas() {
+            console.log("multicanvas", ii);
+            if (loaded === false) {
+              ctx.drawImage(
+                img1,
+                0,
+                0,
+                img1.width,
+                img1.height,
+                0,
+                0,
+                width,
+                height
+              );
+              var id = "canvas" + ii;
+              var index = me.find_floor(i, me.grids_all);
+              var m = me.grids_all[index].length;
+              var n = me.grids_all[index].breadth;
+              for (var j = 0; j < get_val.length - 1; j++) {
+                var dest_x = get_val[j + 1] % m;
+                var dest_y = parseInt(get_val[j + 1] / m);
+                console.log("idds", i, get_val[j], m, n, dest_x, dest_y, true, id);
+                me.callwhile(i, get_val[j], m, n, dest_x, dest_y, true, id);
+              }
+              var node_count = 0;
+              for (var j of get_val) {
+                if (ii === count - 1) {
+                  if (node_count === get_val.length - 1) {
+                    me.color_canvas_spl(j, id, "green", floorLlist[ii]);
+                  } else {
+                    me.color_canvas_spl(j, id, "yellow", floorLlist[ii]);
+                  }
+                } else {
+                  if (node_count === 0 && ii === 0) {
+                    me.color_canvas_spl(j, id, "red", floorLlist[ii]);
+                  } else {
+                    me.color_canvas_spl(j, id, "yellow", floorLlist[ii]);
+                  }
+                }
+                node_count++;
+              }
+              loaded = true;
+            }
+          }
+
+          function timer(ms) {
+            return new Promise(res => setTimeout(res, ms));
+           }
+           ( async ()=>{
+            img1.onload = function() {
+              multiCanvas();
+            }
+            await timer(1000)
+            this.setState({
+              zoomed:true
+            })
+          // zoomTo()
+          })()
+
+          // zoomTo()
+          function zoomTo() {
+            let src_val = get_val[0];
+            let dest_val = get_val[1];
+            let index = me.find_floor(i, me.grids_all);
+            let m = me.grids_all[index].length;
+            let src_x = parseInt(src_val) % m;
+            let src_y = parseInt(parseInt(src_val) / m);
+            let dest_x = parseInt(dest_val) % m;
+            let dest_y = parseInt(parseInt(dest_val) / m);
+            let dx, dy;
+            if (dest_x > src_y) {
+              dx = dest_x - src_x;
+            } else {
+              dx = src_x - dest_x;
+            }
+            if (dest_y > src_y) {
+              dy = dest_y - src_y;
+            } else {
+              dy = src_y - dest_y;
+            }
+            let x = (src_x + dest_x) / 2;
+            let y = (dest_y + src_y) / 2;
+            let scale = Math.max(
+              1,
+              Math.min(8, 0.9 / Math.max(dx / width, dy / height))
+            );
+            let translate = [width / 2 - scale * x, height / 2 - scale * y];
+            var transform = window.d3.zoomIdentity
+              .translate(translate[0], translate[1])
+              .scale(2);
+            canvas
+              .transition()
+              .duration(750)
+              .call(zoom1.transform, transform);
+          }
+        }
+      );
+    }
+  }
+
+  async callwhile(srcfloor, srcVal, m, n, dest_x, dest_y, single, canvasid) {
+    // console.log("after",dest_x,dest_y)
+    var min = Number.MAX_VALUE;
+    var minleave = [];
+    var var_i;
+    var notthere;
+    for (let i = 0; i < m; i++) {
+      var row = [],
+        row1 = [],
+        row3 = [],
+        row4 = [];
+      for (let j = 0; j < n; j++) {
+        row.push(1);
+        row1.push(-1);
+        row3.push(Number.MAX_VALUE);
+        var row5 = [];
+        row4.push(row5);
+      }
+      this.shortestpath.push(row4);
+      // console.log("row",row)
+      this.grids.push(row);
+      this.visited.push(row1);
+      this.minimumcost.push(row3);
+    }
+    var ind1 = this.find_floor(srcfloor, this.grids_all);
+    if (this.grids_all[ind1].grid_1 != null) {
+      for (let i = 0; i < this.grids_all[ind1].grid_1.length; i++) {
+        var nodes = this.grids_all[ind1].grid_1[i].split(",");
+        for (let j = 0; j < nodes.length; j++) {
+          var val = nodes[j];
+          var x = val % m;
+          var y = parseInt(val / m);
+          this.grids[x][y] = 0;
+        }
+      }
+    }
+    var src_x = srcVal % m;
+    var src_y = parseInt(srcVal / m);
+    let check_leaves = new Map();
+    this.leaves.push([src_x, src_y]);
+    check_leaves.set([src_x, src_y], 1);
+    this.shortestpath[src_x][src_y].push([src_x, src_y]);
+    this.minimumcost[src_x][src_y] = 0;
+    while (this.leaves.length > 0) {
+      min = Number.MAX_VALUE;
+      minleave = this.leaves[0];
+      min = this.minimumcost[minleave[0]][minleave[1]];
+      var_i = 0;
+      this.visited[minleave[0]][minleave[1]] = 1;
+      if (single === true) {
+        if (minleave[0] === dest_x && minleave[1] === dest_y) {
+          break;
+        }
+      } else {
+        var check = true;
+        for (var ch = 0; ch < parseInt(this.flrconn.length); ch++) {
+          if (
+            this.visited[parseInt(this.flrconn[ch][0])][
+              parseInt(this.flrconn[ch][1])
+            ] === 1
+          ) {
+          } else {
+            check = false;
+          }
+        }
+        if (check === true) {
+          for (let ch = 0; ch < parseInt(this.flrconn.length); ch++) {
+            var vert = srcfloor + "," + srcVal + "," + "virtual";
+            this.graph.addEdge(
+              vert,
+              this.flrconn[ch][2],
+              this.minimumcost[parseInt(this.flrconn[ch][0])][
+                parseInt(this.flrconn[ch][1])
+              ],
+              true
+            );
+          }
+          this.reset_var();
+          break;
+        }
+      }
+      this.leaves.shift();
+      var p1 = minleave[0],
+        p2 = minleave[1];
+      check_leaves.set(minleave, 0);
+      var j;
+      var k;
+      if (p1 - 1 >= 0) {
+        j = p1 - 1;
+        k = p2;
+        if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+          if (
+            this.minimumcost[j][k] >
+            this.minimumcost[minleave[0]][minleave[1]] + 1
+          ) {
+            this.minimumcost[j][k] =
+              this.minimumcost[minleave[0]][minleave[1]] + 1;
+            this.shortestpath[j][k] = this.shortestpath[minleave[0]][
+              minleave[1]
+            ].concat([[j, k]]);
+            var jk = [j, k];
+            if (
+              check_leaves.get(jk) === undefined ||
+              check_leaves.get(jk) === 0
+            ) {
+              this.leaves.push(jk);
+              check_leaves.set(jk, 1);
+            }
+          }
+        }
+      }
+      if (p1 + 1 < m) {
+        j = p1 + 1;
+        k = p2;
+        if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+          if (
+            this.minimumcost[j][k] >
+            this.minimumcost[minleave[0]][minleave[1]] + 1
+          ) {
+            this.minimumcost[j][k] =
+              this.minimumcost[minleave[0]][minleave[1]] + 1;
+            this.shortestpath[j][k] = this.shortestpath[minleave[0]][
+              minleave[1]
+            ].concat([[j, k]]);
+            var jk = [j, k];
+            if (
+              check_leaves.get(jk) === undefined ||
+              check_leaves.get(jk) === 0
+            ) {
+              this.leaves.push(jk);
+              check_leaves.set(jk, 1);
+            }
+          }
+        }
+      }
+      if (p2 - 1 >= 0) {
+        j = p1;
+        k = p2 - 1;
+        if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+          if (
+            this.minimumcost[j][k] >
+            this.minimumcost[minleave[0]][minleave[1]] + 1
+          ) {
+            this.minimumcost[j][k] =
+              this.minimumcost[minleave[0]][minleave[1]] + 1;
+            this.shortestpath[j][k] = this.shortestpath[minleave[0]][
+              minleave[1]
+            ].concat([[j, k]]);
+            var jk = [j, k];
+            if (
+              check_leaves.get(jk) === undefined ||
+              check_leaves.get(jk) === 0
+            ) {
+              this.leaves.push(jk);
+              check_leaves.set(jk, 1);
+            }
+          }
+        }
+      }
+      if (p2 + 1 < n) {
+        j = p1;
+        k = p2 + 1;
+        if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+          if (
+            this.minimumcost[j][k] >
+            this.minimumcost[minleave[0]][minleave[1]] + 1
+          ) {
+            this.minimumcost[j][k] =
+              this.minimumcost[minleave[0]][minleave[1]] + 1;
+            this.shortestpath[j][k] = this.shortestpath[minleave[0]][
+              minleave[1]
+            ].concat([[j, k]]);
+            var jk = [j, k];
+            if (
+              check_leaves.get(jk) === undefined ||
+              check_leaves.get(jk) === 0
+            ) {
+              this.leaves.push(jk);
+              check_leaves.set(jk, 1);
+            }
+          }
+        }
+      }
+      if (p1 - 1 >= 0 && p2 - 1 >= 0) {
+        j = p1 - 1;
+        k = p2 - 1;
+        if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+          if (
+            this.minimumcost[j][k] >
+            this.minimumcost[minleave[0]][minleave[1]] + Math.sqrt(2)
+          ) {
+            this.minimumcost[j][k] =
+              this.minimumcost[minleave[0]][minleave[1]] + Math.sqrt(2);
+            this.shortestpath[j][k] = this.shortestpath[minleave[0]][
+              minleave[1]
+            ].concat([[j, k]]);
+            var jk = [j, k];
+            if (
+              check_leaves.get(jk) === undefined ||
+              check_leaves.get(jk) === 0
+            ) {
+              this.leaves.push(jk);
+              check_leaves.set(jk, 1);
+            }
+          }
+        }
+      }
+      if (p1 - 1 >= 0 && p2 + 1 < n) {
+        j = p1 - 1;
+        k = p2 + 1;
+        if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+          if (
+            this.minimumcost[j][k] >
+            this.minimumcost[minleave[0]][minleave[1]] + Math.sqrt(2)
+          ) {
+            this.minimumcost[j][k] =
+              this.minimumcost[minleave[0]][minleave[1]] + Math.sqrt(2);
+            this.shortestpath[j][k] = this.shortestpath[minleave[0]][
+              minleave[1]
+            ].concat([[j, k]]);
+            var jk = [j, k];
+            if (
+              check_leaves.get(jk) === undefined ||
+              check_leaves.get(jk) === 0
+            ) {
+              this.leaves.push(jk);
+              check_leaves.set(jk, 1);
+            }
+          }
+        }
+      }
+      if (p1 + 1 < m && p2 - 1 >= 0) {
+        j = p1 + 1;
+        k = p2 - 1;
+        if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+          if (
+            this.minimumcost[j][k] >
+            this.minimumcost[minleave[0]][minleave[1]] + Math.sqrt(2)
+          ) {
+            this.minimumcost[j][k] =
+              this.minimumcost[minleave[0]][minleave[1]] + Math.sqrt(2);
+            this.shortestpath[j][k] = this.shortestpath[minleave[0]][
+              minleave[1]
+            ].concat([[j, k]]);
+            var jk = [j, k];
+            if (
+              check_leaves.get(jk) === undefined ||
+              check_leaves.get(jk) === 0
+            ) {
+              this.leaves.push(jk);
+              check_leaves.set(jk, 1);
+            }
+          }
+        }
+      }
+      if (p1 + 1 < m && p2 + 1 < n) {
+        j = p1 + 1;
+        k = p2 + 1;
+        if (this.visited[j][k] === -1 && this.grids[j][k] === 1) {
+          if (
+            this.minimumcost[j][k] >
+            this.minimumcost[minleave[0]][minleave[1]] + Math.sqrt(2)
+          ) {
+            this.minimumcost[j][k] =
+              this.minimumcost[minleave[0]][minleave[1]] + Math.sqrt(2);
+            this.shortestpath[j][k] = this.shortestpath[minleave[0]][
+              minleave[1]
+            ].concat([[j, k]]);
+            var jk = [j, k];
+            if (
+              check_leaves.get(jk) === undefined ||
+              check_leaves.get(jk) === 0
+            ) {
+              this.leaves.push(jk);
+              check_leaves.set(jk, 1);
+            }
+          }
+        }
+      }
+    }
+    // console.log("canvas id",canvasid,this.shortestpath[dest_x][dest_y],dest_x)
+    if (single === true) {
+      let { scale } = this.state;
+      var canvas = document.getElementById(canvasid);
+      if (canvas !== null) {
+        var context = canvas.getContext("2d");
+      }
+      let sp = this.shortestpath[dest_x][dest_y];
+      if (this.state.srcfloor === this.state.dstfloor) {
+        // console.log("zoomed to",canvasid,sp)
+      } else {
+        // console.log("zoomed",canvasid,this.shortestpath[dest_x][dest_y])
+      }
+
+      function timer(ms) {
+        return new Promise(res => setTimeout(res, ms));
+      }
+      let me = this;
+      var count = 0;
+
+      async function load() {
+        let gpx = me.state.canvasWidth / me.state.srcfloorL;
+        let gpy = me.state.canvasHeight / me.state.srcfloorB;
+
+        for (let i = 0; i < sp.length; i = i + 2) {
+          context.beginPath();
+          var half_scale = scale / 2;
+          var pos_x = gpx * sp[i][0];
+          var pos_y = gpy * sp[i][1];
+          pos_x = pos_x + half_scale;
+          pos_y = pos_y + half_scale;
+          context.arc(pos_x, pos_y, scale / 1.3, 0, 2 * Math.PI);
+          context.fill();
+          context.fillStyle = "#6c757c";
+          context.strokeStyle = "#6c757c";
+          context.stroke();
+          count++;
+          let time = Math.floor(3000 / sp.length);
+          await timer(time);
+        }
+      }
+      if (
+        !this.state.zoomed 
+        // &&
+        // === false
+        // this.state.srcfloor === this.state.dstfloor
+      ) {
+        await load();
+      }
+
+      let gpx = this.state.canvasWidth / this.state.srcfloorL;
+      let gpy = this.state.canvasHeight / this.state.srcfloorB;
+
+      if (this.state.srcfloor === this.state.dstfloor) {
+          let xyArray = this.shortestpath[dest_x][dest_y].map(r=>{
+            return {x:r[0],y:r[1]};
+          })
+          var refinedpaths=this.simplifyPath(xyArray,2);
+          let interpolated = this.interpolatePath (refinedpaths,2.5,gpx,gpy )
+          for (
+            let i = 0;
+            i < interpolated.length;
+            i ++
+          ) {
+            context.beginPath();
+            let half_scale = scale / 2;
+            let pos_x = interpolated[i].x;
+            let pos_y = interpolated[i].y;
+            pos_x = pos_x + half_scale;
+            pos_y = pos_y + half_scale;
+            context.arc(pos_x, pos_y, scale / 1.3, 0, 2 * Math.PI);
+            context.fill();
+            context.fillStyle = "#6c757c";
+            context.strokeStyle = "#6c757c";
+            context.stroke();
+          }
+          let extractedLength =  this.props.allNodes[0].nodes.length - this.state.flrList.length
+          let importantRooms = this.props.allNodes[0].nodes.slice(0,extractedLength)
+          this.findInstructions(this.shortestpath[dest_x][dest_y],refinedpaths,importantRooms,this.state.srcfloor);
+
+          // for (
+          //   let i = 0;
+          //   i < this.shortestpath[dest_x][dest_y].length;
+          //   i = i + 2
+          // ) {
+          //   context.beginPath();
+          //   let half_scale = scale / 2;
+          //   let pos_x = gpx * this.shortestpath[dest_x][dest_y][i][0];
+          //   let pos_y = gpy * this.shortestpath[dest_x][dest_y][i][1];
+          //   pos_x = pos_x + half_scale;
+          //   pos_y = pos_y + half_scale;
+          //   context.arc(pos_x, pos_y, scale / 1.3, 0, 2 * Math.PI);
+          //   context.fill();
+          //   context.fillStyle = "#6c757c";
+          //   context.strokeStyle = "#6c757c";
+          //   context.stroke();
+          // }
+          // console.log("shortes path",this.shortestpath[dest_x][dest_y])         
+        // }
+      } else {
+        let gpx = this.state.canvasWidth / this.state.srcfloorL;
+        let gpy = this.state.canvasHeight / this.state.srcfloorB;
+        if (this.state.zoomed) {
+        // console.log("posx and y",dest_x,dest_y,canvasid,this.shortestpath[dest_x][dest_y])
+        let xyArray = this.shortestpath[dest_x][dest_y].map(r=>{
+          return {x:r[0],y:r[1]};
+        })
+        let refinedpaths=this.simplifyPath(xyArray,2);
+        let interpolated = this.interpolatePath (refinedpaths,2.5,gpx,gpy )
+        for (
+          let i = 0;
+          i < interpolated.length;
+          i ++
+        ) {
+          context.beginPath();
+          let half_scale = scale / 2;
+          let pos_x = interpolated[i].x;
+          let pos_y = interpolated[i].y;
+          pos_x = pos_x + half_scale;
+          pos_y = pos_y + half_scale;
+          context.arc(pos_x, pos_y, scale / 1.3, 0, 2 * Math.PI);
+          context.fill();
+          context.fillStyle = "#6c757c";
+          context.strokeStyle = "#6c757c";
+          context.stroke();
+        }
+        let extractedLength =  this.props.allNodes[0].nodes.length - this.state.flrList.length
+        let importantRooms = this.props.allNodes[0].nodes.slice(0,extractedLength)
+        console.log("asyn call while",srcfloor)
+        this.findInstructions(this.shortestpath[dest_x][dest_y],refinedpaths,importantRooms,srcfloor);
+        // for (
+        //   let i = 0;
+        //   i < this.shortestpath[dest_x][dest_y].length;
+        //   i = i + 2
+        // ) {
+        //   context.beginPath();
+        //   let half_scale = scale / 2;
+        //   let pos_x = gpx * this.shortestpath[dest_x][dest_y][i][0];
+        //   let pos_y = gpy * this.shortestpath[dest_x][dest_y][i][1];
+        //   pos_x = pos_x + half_scale;
+        //   pos_y = pos_y + half_scale;
+        //   context.arc(pos_x, pos_y, 1, 0, 2 * Math.PI);
+        //   context.fill();
+        //   context.fillStyle = "#6c757c";
+        //   context.strokeStyle = "#6c757c";
+        //   context.stroke();
+        // }
+        // var refinedpaths=simplifyPath(mypoints,2);
+        // findInstructions(mypointsInArray,refinedpaths,importantRooms);
+
+        }
+      }
+      this.reset_var();
+    }
+  }
+
+    // "scripts": {
+  //   "clean": "rm -rf build",
+  //   "start": "react-scripts start",
+  //   "build": "GENERATE_SOURCEMAP=false react-scripts build",
+  //   "test": "react-scripts test",
+  //   "eject": "react-scripts eject",
+  //   "generate-build-version": "node generate-build-version",
+  //   "prebuild": "npm run generate-build-version"
+  // },

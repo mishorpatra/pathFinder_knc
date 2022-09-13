@@ -1,0 +1,264 @@
+/* 1%-margin 18%-size */
+.col1{
+    position: absolute; 
+    left:1%;width: 18%;
+}
+.col2{
+    position: absolute;
+    left:21%;width: 18%;
+}
+.col3{
+    position: absolute;
+    left: 41%;width: 18%;
+}
+.col4{
+    position: absolute;
+    left: 61%; width: 18%;
+}
+.col5{
+    position: absolute;
+    left: 81%;width: 18%;
+}
+.row1{
+    position: absolute;
+    top: 1%; height: 18%;
+}
+.row2{
+    position: absolute;
+    top: 21%;height: 18%;
+}
+.row3{
+    position: absolute;
+    top: 41%;height: 18%;
+}
+.row4{
+    position: absolute;
+    top: 61%;height: 18%;
+}
+.row5{
+    position: absolute;
+    top: 81%;height: 18%;
+}
+.alignCenter{
+    display: flex;
+    justify-content: center;
+    align-items: center;text-align: center;
+}
+.alignTextCenter{
+    text-align: center;
+}
+/* mobile portrait */
+@media only screen and (max-width: 567px){}
+/* mobile landscape, tab */
+@media only screen and (min-width: 568px) and (max-width: 1024px){}
+/* desktop small */
+@media only screen and (min-width: 1025px) and (max-width: 1280px){}
+/* desktop large */
+@media only screen and (min-width: 1281px){}
+
+.header{
+    position: absolute;z-index: 1;
+    height: 12%;top: 0;width: 100%;left: 0;    
+    color: var(--primary);
+    font-size: 2.2rem ;font-weight: 500;
+}
+.headerContent{    
+    width: 100%;height: 100%;
+}
+.headerDropDown{
+    width: 80%;height: 88%;
+    font-size: 2.2rem ;font-weight: 500;
+    color: var(--primary);
+    border: 2px solid var(--primary);
+}
+form>.headerDropDown{
+    width: 80%;height: 88%;
+    font-size: 2.2rem ;font-weight: 500;
+    color: var(--primary);
+    border: 2px solid var(--primary);
+}
+.headerBtn{
+    width: 85%;height: 90%;
+    border-radius: 5px;
+    color: var(--white);
+    background-color: var(--primary);
+    font-size: 2.2rem ;font-weight: 500;
+    outline: none;border: none;
+}
+form>.headerBtn{
+    width: 85%;height: 90%;
+    border-radius: 5px;
+    color: var(--white);
+    background-color: var(--primary);
+    font-size: 2.2rem ;font-weight: 500;
+    outline: none;border: none;
+}
+.headerBtn:hover{background-color: var(--info);}
+.headerBtn:active{background-color: var(--info);}
+form>.headerBtn:hover{background-color: var(--info);}
+form>.headerBtn:active{background-color: var(--info);}
+.leftMenu{
+    position: absolute;z-index: 1;
+    width: 5%;
+    left: 0;
+    /* height: 58%; */
+    top: 21%;
+    background-color: var(--primary);
+    color: var(--white)
+}
+.floorLevel{
+    position: absolute;z-index: 1;
+    width: 5%;
+    right:0;
+    /* height: 58%; */
+    top: 21%;
+    background-color: var(--primary);
+    color: var(--white)
+}
+.footerHead{
+    position: absolute;z-index: 1;
+    height: 5%;bottom: 9.9%;width: 18%;left: 41%;
+    background-color: var(--primary);
+    color: var(--white);
+    font-size: 1.2rem;font-size: 400;
+    border-radius: 5px 5px 0 0;
+}
+.footer{
+    position: absolute;z-index: 1;
+    width: 100%;left: 0;height: 10%;bottom: 0;
+    background-color: var(--primary);
+    color: var(--white);
+}
+.footerIcon{
+    height: 60%;width: 12%;
+}
+.footerIcon:hover{height: 70%;}
+.footerIcon:active{height: 70%;}
+.footerImage{height: 90%;}
+
+ 
+:root {
+    
+    --indigo: #6610f2;
+    --purple: #6f42c1;
+    --pink: #e83e8c;    
+    --orange: #fd7e14;
+    --teal: #20c997;
+    --white: #fff;
+    --primary: #007bff;
+    --secondary: #6c757d;
+    --success: #28a745;
+    --info: #17a2b8;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --breakpoint-xs: 0;
+    --breakpoint-sm: 576px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 992px;
+    --breakpoint-xl: 1200px;
+    --font-family-sans-serif: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+    --font-family-monospace: SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+}
+body{
+    margin: 0;
+    overflow-x:hidden;  
+    font-family: var(--font-family-sans-serif);
+    font-size: 1rem;font-weight: 400;line-height: 1.5;
+    color: #212529;
+}
+input,textarea,button,select,a,div {
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+.homeContainer{
+    position: absolute;
+    width: 58%;left: 21%;height: 58%;top: 25%;
+}
+.homeText{
+    position: absolute;
+    width: 100%;left: 0;height: 18%; top: 21%;
+}
+.homeHead{    
+    font-weight: 500;font-size: 3rem;color: var(--primary);
+}
+
+.homeSubHead{
+    font-weight: 400;font-size: 2.2rem;color: var(--primary);
+}
+
+.langContainer{
+    position: absolute;
+    width: 100%;left: 0;height: 18%; top: 41%;
+}
+.langInst{
+    position: absolute;
+    width: 100%;left: 0;height: 18%;top:1%;
+    font-size: 1.2rem;color: var(--primary);
+}
+.langBtnContainer{
+    position: absolute;
+    width: 100%;left: 0;height: 68%;top: 21%;
+}
+.langBtn{
+    width: 18%;height: 54%;
+    background-color: var(--primary);
+    color: var(--white);
+    border: none;outline: none;
+    font-size: 2.2rem;font-weight: 400;
+}
+
+a>.langBtn{
+    width: 18%;height: 54%;
+    background-color: var(--primary);
+    color: var(--white);
+    border: none;outline: none;
+    font-size: 2.2rem;font-weight: 400;
+}
+
+.langBtn:hover{background-color: var(--info);}
+a>.langBtn:hover{background-color: var(--info);}
+.langBtn:active{background-color: var(--info);}
+a>.langBtn:active{background-color: var(--info);}
+
+.btn-circle.btn-sm { 
+    width: 30px; 
+    height: 30px; 
+    padding: 6px 0px; 
+    border-radius: 15px; 
+    font-size: 8px; 
+    text-align: center; 
+} 
+.btn-circle.btn-md { 
+    width: 50px; 
+    height: 50px; 
+    padding: 7px 10px; 
+    border-radius: 25px; 
+    font-size: 10px; 
+    text-align: center; 
+} 
+.btn-circle.btn-xl { 
+    width: 56px; 
+    height: 56px; 
+    padding: 10px 16px; 
+    border-radius: 35px; 
+    font-size: 12px; 
+    text-align: center; 
+} 
+
+.grp-btn{
+        margin-top: 55%;
+        position: fixed !important;
+        z-index: 5;
+        right: 5px;
+        bottom:20%;
+}
+
+.cam-btn{
+    margin-top: 88%;
+    position: fixed;
+    z-index: 5;
+    right: 5px;
+    bottom:8%;
+}

@@ -1,0 +1,121 @@
+  colorCanvas = (i, place, color) => {
+    if (place === "srcmap") {
+      let { srcFloorL, scale } = this.state;
+      var canvas = document.getElementById("myCanvassrc");
+      var context = canvas.getContext("2d");
+
+
+
+      var requestAnimationFrame = window.requestAnimationFrame || 
+                            window.mozRequestAnimationFrame || 
+                            window.webkitRequestAnimationFrame || 
+                            window.msRequestAnimationFrame;
+
+      var posX = scale * (i % srcFloorL);
+      var posY = scale * parseInt(i / srcFloorL);
+      context.beginPath();
+      var halfScale = scale / 2;
+      posX = posX + halfScale;
+      posY = posY + halfScale;
+      context.arc(posX, posY, scale, 0, 2 * Math.PI);
+      context.fillStyle = color;
+      context.fill();
+    if (i === this.state.srcVal) {
+      count++;
+      context.shadowBlur = 10;
+      context.beginPath();
+      context.shadowColor = "green";
+      context.arc(posX, posY, scale, 0, 2 * Math.PI);
+      context.fillStyle = "green";
+      context.fill();
+    } else {
+      // ctx.clearRect(0, 0, animate.width, animate.height);
+     
+      // // color in the background
+      // ctx.fillStyle = "#EEEEEE";
+      // ctx.fillRect(0, 0, animate.width, animate.height);
+       
+      // // draw the circle
+      // ctx.beginPath();
+       
+      // var radius = 175;
+      // ctx.arc(225, 225, radius, 0, Math.PI * 2, false);
+      // ctx.closePath();
+       
+      // // color in the circle
+      // ctx.fillStyle = "#006699";
+      // ctx.fill();
+      this.posX = posX;
+      this.posY =  posY;
+      this.drawCircle();
+    }
+    } else {
+      let { dstFloorL, scale } = this.state;
+      let canvas = document.getElementById("myCanvasdst");
+      let context = canvas.getContext("2d");
+      let posX = scale * (i % dstFloorL);
+      let posY = scale * parseInt(i / dstFloorL);
+      context.fillStyle = color;
+      context.fillRect(posX, posY, scale, scale);
+    }
+  };
+  drawCircle=()=> {
+    console.log("init postx and y",this.posX,this.posY)
+    let {scale} = this.state;
+    var x = scale,
+    y = 0,
+    value = 2;
+
+    var animate = document.getElementById("animate");
+    var ctx = animate.getContext("2d");
+    ctx.clearRect(0, 0, animate.width, animate.height);
+     
+    // // color in the background
+    // ctx.fillStyle = "#EEEEEE";
+    // ctx.fillRect(0, 0, animate.width, animate.height);
+     
+    // draw the circle
+    ctx.beginPath();
+    var radius = 25 + this.state.scale * Math.abs(Math.cos(this.angle));
+    ctx.arc(this.posX, this.posY, scale, 0, 2 * Math.PI);
+    // ctx.arc(this.posX,this.posY, radius, 0, Math.PI * 2, false);
+    ctx.closePath();
+     
+    // color in the circle
+    ctx.fillStyle = "#006699";
+    ctx.fill();
+      
+
+    if (x >= 0) {
+      x += value;
+      if (x > scale) {
+        y += value;
+        x -= value;
+      }
+    }
+    if (y > 175) {
+      x = scale;
+      y = 0;
+    }
+
+    this.angle += Math.PI / 16;
+     
+     
+    requestAnimationFrame(this.drawCircle);
+}
+
+
+
+
+    let { srcFloorL, scale } = this.state;
+      var canvas = document.getElementById("myCanvassrc");
+      var context = canvas.getContext("2d");
+      var posX = scale * (i % srcFloorL);
+      var posY = scale * parseInt(i / srcFloorL);
+      context.beginPath();
+      var halfScale = scale / 2;
+      posX = posX + halfScale;
+      posY = posY + halfScale;
+      context.arc(posX, posY, scale, 0, 2 * Math.PI);
+      context.fillStyle = color;
+      context.fill();

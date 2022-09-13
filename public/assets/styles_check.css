@@ -1,0 +1,102 @@
+.videosize {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  width: 100%; 
+  height: 100%;
+  object-fit: cover;
+}
+.grid-container {
+display: inline-grid;
+grid-template-columns: auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto;
+/* <!--background-color: #2345F4;--> */
+padding: 0px;
+background-repeat: no-repeat;
+background-size: 360px 368px;
+ }
+.grid-item {
+border: 0px solid rgba(0, 0, 0, 0.8);
+padding: 5px;
+text-align: center;
+opacity: 1;
+ }
+#example2{
+  display: inline-block;
+  padding: 0px;
+  background-repeat: no-repeat;
+  background-size: 600px 600px;
+  margin-top: 0px;
+  float: left;
+  max-height: 100%;
+}
+
+/* SIDE DRAWER */
+.side-drawer {
+height: 100%;
+background: white;
+box-shadow: 1px 0px 7px rgba(0, 0, 0, 0.5);
+position: fixed;
+top: 0;
+left: 0;
+width: 70%;
+max-width: 400px;
+z-index: 200;
+transform: translateX(-100%);
+transition: transform 0.3s ease-out;
+}
+
+.side-drawer.open {
+transform: translateX(0);
+}
+
+.side-drawer ul {
+height: 100%;
+list-style: none;
+display: flex;
+flex-direction: column;
+justify-content: center;
+}
+
+.side-drawer li {
+margin: 0.5rem 0;
+}
+
+.side-drawer a {
+color: #521751;
+text-decoration: none;
+font-size: 1.2rem;
+}
+
+.side-drawer a:hover,
+.side-drawer a:active {
+color: #fa923f;
+}
+
+@media (min-width: 769px) {
+  /* .side-drawer { */
+    /* display: none; */
+  /* } */
+}
+
+/*BACKDROP*/
+.backdrop {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 100;
+}
+/*TOGGLE BUTTON*/
+
+.toggle-button:focus {
+  outline: none;
+}
+
+.toggle-button__line {
+  width: 30px;
+  height: 2px;
+  background: white;
+}
